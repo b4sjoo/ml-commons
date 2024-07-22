@@ -65,8 +65,7 @@ POST /_plugins/_ml/connectors/_create
     },
     "parameters": {
         "region": "<PLEASE ADD YOUR AWS REGION HERE>",
-        "service_name": "bedrock",
-        "model": "anthropic.claude-v2"
+        "service_name": "bedrock"
     },
     "actions": [
         {
@@ -75,7 +74,7 @@ POST /_plugins/_ml/connectors/_create
             "headers": {
                 "content-type": "application/json"
             },
-            "url": "https://bedrock-runtime.${parameters.region}.amazonaws.com/model/${parameters.model}/invoke",
+            "url": "https://bedrock-runtime.${parameters.region}.amazonaws.com/model/anthropic.claude-v2/invoke",
             "request_body": "{\"prompt\":\"\\n\\nHuman: ${parameters.inputs}\\n\\nAssistant:\",\"max_tokens_to_sample\":300,\"temperature\":0.5,\"top_k\":250,\"top_p\":1,\"stop_sequences\":[\"\\\\n\\\\nHuman:\"]}"
         }
     ]

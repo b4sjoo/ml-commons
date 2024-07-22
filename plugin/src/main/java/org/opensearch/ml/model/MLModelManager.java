@@ -122,7 +122,6 @@ import org.opensearch.ml.common.transport.deploy.MLDeployModelResponse;
 import org.opensearch.ml.common.transport.register.MLRegisterModelInput;
 import org.opensearch.ml.common.transport.register.MLRegisterModelResponse;
 import org.opensearch.ml.common.transport.upload_chunk.MLRegisterModelMetaInput;
-import org.opensearch.ml.common.utils.ModelInterfaceUtils;
 import org.opensearch.ml.engine.MLEngine;
 import org.opensearch.ml.engine.MLExecutable;
 import org.opensearch.ml.engine.ModelHelper;
@@ -1121,16 +1120,6 @@ public class MLModelManager {
         setupMLGuard(modelId, mlModel.getGuardrails());
         setupModelInterface(modelId, mlModel.getModelInterface());
         if (mlModel.getConnector() != null || FunctionName.REMOTE != mlModel.getAlgorithm()) {
-            if (mlModel.getConnector() != null) {
-                Map<String, Object> presetModelInterface = ModelInterfaceUtils.createPresetModelInterfaceByRemoteModel(mlModel);
-                if (presetModelInterface != null) {
-                    updateModel(modelId, presetModelInterface, ActionListener.wrap(updateResponse -> {}, e -> {
-                        log.error("Failed to update model interface", e);
-                        wrappedListener
-                            .onFailure(new OpenSearchStatusException("Failed to update model interface", RestStatus.INTERNAL_SERVER_ERROR));
-                    }));
-                }
-            }
             setupParamsAndPredictable(modelId, mlModel);
             mlStats.getStat(MLNodeLevelStat.ML_DEPLOYED_MODEL_COUNT).increment();
             modelCacheHelper.setModelState(modelId, MLModelState.DEPLOYED);
@@ -1141,14 +1130,6 @@ public class MLModelManager {
         log.info("Set connector {} for the model: {}", mlModel.getConnectorId(), modelId);
         getConnector(mlModel.getConnectorId(), ActionListener.wrap(connector -> {
             mlModel.setConnector(connector);
-            Map<String, Object> presetModelInterface = ModelInterfaceUtils.createPresetModelInterfaceByRemoteModel(mlModel);
-            if (presetModelInterface != null) {
-                updateModel(modelId, presetModelInterface, ActionListener.wrap(updateResponse -> {}, e -> {
-                    log.error("Failed to update model interface", e);
-                    wrappedListener
-                        .onFailure(new OpenSearchStatusException("Failed to update model interface", RestStatus.INTERNAL_SERVER_ERROR));
-                }));
-            }
             setupParamsAndPredictable(modelId, mlModel);
             mlStats.getStat(MLNodeLevelStat.ML_DEPLOYED_MODEL_COUNT).increment();
             modelCacheHelper.setModelState(modelId, MLModelState.DEPLOYED);

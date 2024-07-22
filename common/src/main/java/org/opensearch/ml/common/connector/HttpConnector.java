@@ -319,7 +319,6 @@ public class HttpConnector extends AbstractConnector {
             if (!isJson(payload)) {
                 throw new IllegalArgumentException("Invalid payload: " + payload);
             }
-            log.warn("Payload: {}", payload);
             return (T) payload;
         }
         return (T) parameters.get("http_body");
