@@ -196,6 +196,8 @@ public class ConnectorUtils {
         if (modelResponse == null) {
             throw new IllegalArgumentException("model response is null");
         }
+        log.warn("WTF: " + modelResponse);
+        System.out.println(modelResponse);
         if (mlGuard != null
             && !mlGuard
                 .validate(
