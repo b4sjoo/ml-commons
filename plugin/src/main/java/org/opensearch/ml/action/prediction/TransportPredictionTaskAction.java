@@ -242,9 +242,11 @@ public class TransportPredictionTaskAction extends HandledTransportAction<Action
         if (modelCacheHelper.getModelInterface(modelId) != null && modelCacheHelper.getModelInterface(modelId).get("input") != null) {
             String inputSchemaString = modelCacheHelper.getModelInterface(modelId).get("input");
             try {
-                String InputString = mlInput.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).toString();
+                String inputString = mlInput.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).toString();
+                log.warn(inputString + "wtf");
+                System.out.println(inputString + "wtf");
                 // Process the parameters field in the input dataset to convert it back to its original datatype, instead of a string
-                String processedInputString = MLNodeUtils.processRemoteInferenceInputDataSetParametersValue(InputString);
+                String processedInputString = MLNodeUtils.processRemoteInferenceInputDataSetParametersValue(inputString);
                 MLNodeUtils.validateSchema(inputSchemaString, processedInputString);
             } catch (Exception e) {
                 throw new OpenSearchStatusException("Error validating input schema: " + e.getMessage(), RestStatus.BAD_REQUEST);
