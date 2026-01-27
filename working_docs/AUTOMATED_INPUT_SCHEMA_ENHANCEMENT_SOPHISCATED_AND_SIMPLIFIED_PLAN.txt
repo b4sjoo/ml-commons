@@ -1,0 +1,395 @@
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Ready to code?                                                                                                    │
+│                                                                                                                   │
+│ Here is Claude's plan:                                                                                            │
+│ ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│ │ Enhanced Implementation Plan: Schema-Driven Message Formatting                                                │ │
+│ │                                                                                                               │ │
+│ │ Executive Summary                                                                                             │ │
+│ │                                                                                                               │ │
+│ │ After reviewing the existing code and the proposed design, I recommend a cleaner, more maintainable           │ │
+│ │ architecture using design patterns that will be easier to extend and understand.                              │ │
+│ │                                                                                                               │ │
+│ │ Current Problems Confirmed                                                                                    │ │
+│ │                                                                                                               │ │
+│ │ 1. System prompt placement is hardcoded for Claude-style (always in system_prompt parameter)                  │ │
+│ │ 2. No content processing - user-defined objects without type field pass through unchecked                     │ │
+│ │ 3. Repeated code - similar message building logic in 3+ methods                                               │ │
+│ │ 4. Tight coupling - logic scattered across methods with if/else checks                                        │ │
+│ │                                                                                                               │ │
+│ │ Enhanced Architecture (Simpler than Original Proposal)                                                        │ │
+│ │                                                                                                               │ │
+│ │ Core Design: Strategy + Factory Pattern                                                                       │ │
+│ │                                                                                                               │ │
+│ │ Instead of scattered if/else checks, use a clean object-oriented approach:                                    │ │
+│ │                                                                                                               │ │
+│ │ ┌─────────────────────┐                                                                                       │ │
+│ │ │ MessageFormatter    │ ← Interface                                                                           │ │
+│ │ ├─────────────────────┤                                                                                       │ │
+│ │ │ + formatRequest()   │                                                                                       │ │
+│ │ └─────────────────────┘                                                                                       │ │
+│ │           ▲                                                                                                   │ │
+│ │           │                                                                                                   │ │
+│ │     ┌─────┴─────┐                                                                                             │ │
+│ │     │           │                                                                                             │ │
+│ │ ┌───────────┐ ┌──────────┐                                                                                    │ │
+│ │ │  Claude   │ │  OpenAI  │ ← Implementations                                                                  │ │
+│ │ │ Formatter │ │ Formatter│                                                                                    │ │
+│ │ └───────────┘ └──────────┘                                                                                    │ │
+│ │                                                                                                               │ │
+│ │ Implementation Plan                                                                                           │ │
+│ │                                                                                                               │ │
+│ │ Phase 1: Core Message Formatter Architecture (~3 hours)                                                       │ │
+│ │                                                                                                               │ │
+│ │ New File: common/src/main/java/org/opensearch/ml/common/utils/message/MessageFormatter.java                   │ │
+│ │                                                                                                               │ │
+│ │ public interface MessageFormatter {                                                                           │ │
+│ │     /**                                                                                                       │ │
+│ │      * Format a request with proper system prompt placement and content processing                            │ │
+│ │      */                                                                                                       │ │
+│ │     Map<String, String> formatRequest(                                                                        │ │
+│ │         String systemPrompt,                                                                                  │ │
+│ │         List<MessageInput> messages,                                                                          │ │
+│ │         Map<String, Object> additionalConfig                                                                  │ │
+│ │     );                                                                                                        │ │
+│ │                                                                                                               │ │
+│ │     /**                                                                                                       │ │
+│ │      * Process content objects to ensure LLM compatibility                                                    │ │
+│ │      */                                                                                                       │ │
+│ │     List<Map<String, Object>> processContent(List<Map<String, Object>> content);                              │ │
+│ │ }                                                                                                             │ │
+│ │                                                                                                               │ │
+│ │ New File: common/src/main/java/org/opensearch/ml/common/utils/message/ClaudeMessageFormatter.java             │ │
+│ │                                                                                                               │ │
+│ │ @Log4j2                                                                                                       │ │
+│ │ public class ClaudeMessageFormatter implements MessageFormatter {                                             │ │
+│ │                                                                                                               │ │
+│ │     @Override                                                                                                 │ │
+│ │     public Map<String, String> formatRequest(                                                                 │ │
+│ │         String systemPrompt,                                                                                  │ │
+│ │         List<MessageInput> messages,                                                                          │ │
+│ │         Map<String, Object> additionalConfig                                                                  │ │
+│ │     ) {                                                                                                       │ │
+│ │         Map<String, String> parameters = new HashMap<>();                                                     │ │
+│ │                                                                                                               │ │
+│ │         // Claude uses system_prompt parameter                                                                │ │
+│ │         parameters.put("system_prompt", systemPrompt);                                                        │ │
+│ │                                                                                                               │ │
+│ │         // Build messages array                                                                               │ │
+│ │         String messagesJson = buildMessagesArray(messages, additionalConfig);                                 │ │
+│ │         parameters.put("messages", messagesJson);                                                             │ │
+│ │                                                                                                               │ │
+│ │         return parameters;                                                                                    │ │
+│ │     }                                                                                                         │ │
+│ │                                                                                                               │ │
+│ │     @Override                                                                                                 │ │
+│ │     public List<Map<String, Object>> processContent(List<Map<String, Object>> content) {                      │ │
+│ │         // Process content objects                                                                            │ │
+│ │         return content.stream()                                                                               │ │
+│ │             .map(this::normalizeContentObject)                                                                │ │
+│ │             .collect(Collectors.toList());                                                                    │ │
+│ │     }                                                                                                         │ │
+│ │                                                                                                               │ │
+│ │     private Map<String, Object> normalizeContentObject(Map<String, Object> obj) {                             │ │
+│ │         if (obj.containsKey("type")) {                                                                        │ │
+│ │             return obj;  // Already has type field                                                            │ │
+│ │         }                                                                                                     │ │
+│ │         // Wrap user-defined object as text                                                                   │ │
+│ │         Map<String, Object> wrapped = new HashMap<>();                                                        │ │
+│ │         wrapped.put("type", "text");                                                                          │ │
+│ │         wrapped.put("text", StringUtils.toJson(obj));                                                         │ │
+│ │         return wrapped;                                                                                       │ │
+│ │     }                                                                                                         │ │
+│ │ }                                                                                                             │ │
+│ │                                                                                                               │ │
+│ │ New File: common/src/main/java/org/opensearch/ml/common/utils/message/OpenAIMessageFormatter.java             │ │
+│ │                                                                                                               │ │
+│ │ @Log4j2                                                                                                       │ │
+│ │ public class OpenAIMessageFormatter implements MessageFormatter {                                             │ │
+│ │                                                                                                               │ │
+│ │     @Override                                                                                                 │ │
+│ │     public Map<String, String> formatRequest(                                                                 │ │
+│ │         String systemPrompt,                                                                                  │ │
+│ │         List<MessageInput> messages,                                                                          │ │
+│ │         Map<String, Object> additionalConfig                                                                  │ │
+│ │     ) {                                                                                                       │ │
+│ │         Map<String, String> parameters = new HashMap<>();                                                     │ │
+│ │                                                                                                               │ │
+│ │         // OpenAI uses system message in array                                                                │ │
+│ │         List<MessageInput> allMessages = new ArrayList<>();                                                   │ │
+│ │                                                                                                               │ │
+│ │         // Insert system prompt as first message                                                              │ │
+│ │         if (systemPrompt != null && !systemPrompt.isBlank()) {                                                │ │
+│ │             allMessages.add(createSystemMessage(systemPrompt));                                               │ │
+│ │         }                                                                                                     │ │
+│ │                                                                                                               │ │
+│ │         // Add user messages                                                                                  │ │
+│ │         allMessages.addAll(messages);                                                                         │ │
+│ │                                                                                                               │ │
+│ │         // Build messages array with processed content                                                        │ │
+│ │         String messagesJson = buildMessagesArray(allMessages, additionalConfig);                              │ │
+│ │         parameters.put("messages", messagesJson);                                                             │ │
+│ │                                                                                                               │ │
+│ │         return parameters;                                                                                    │ │
+│ │     }                                                                                                         │ │
+│ │                                                                                                               │ │
+│ │     private MessageInput createSystemMessage(String prompt) {                                                 │ │
+│ │         List<Map<String, Object>> content = List.of(                                                          │ │
+│ │             Map.of("type", "text", "text", prompt)                                                            │ │
+│ │         );                                                                                                    │ │
+│ │         return MessageInput.builder()                                                                         │ │
+│ │             .role("system")                                                                                   │ │
+│ │             .content(content)                                                                                 │ │
+│ │             .build();                                                                                         │ │
+│ │     }                                                                                                         │ │
+│ │ }                                                                                                             │ │
+│ │                                                                                                               │ │
+│ │ Phase 2: Message Formatter Factory (~2 hours)                                                                 │ │
+│ │                                                                                                               │ │
+│ │ New File: common/src/main/java/org/opensearch/ml/common/utils/message/MessageFormatterFactory.java            │ │
+│ │                                                                                                               │ │
+│ │ @Log4j2                                                                                                       │ │
+│ │ public class MessageFormatterFactory {                                                                        │ │
+│ │                                                                                                               │ │
+│ │     private static final MessageFormatter CLAUDE_FORMATTER = new ClaudeMessageFormatter();                    │ │
+│ │     private static final MessageFormatter OPENAI_FORMATTER = new OpenAIMessageFormatter();                    │ │
+│ │                                                                                                               │ │
+│ │     /**                                                                                                       │ │
+│ │      * Get appropriate formatter based on model's input schema.                                               │ │
+│ │      * This method is deterministic and fast - perfect for caching.                                           │ │
+│ │      */                                                                                                       │ │
+│ │     public static MessageFormatter getFormatter(String inputSchemaJson) {                                     │ │
+│ │         if (inputSchemaJson == null || inputSchemaJson.isBlank()) {                                           │ │
+│ │             log.debug("No input schema provided, defaulting to Claude formatter");                            │ │
+│ │             return CLAUDE_FORMATTER;                                                                          │ │
+│ │         }                                                                                                     │ │
+│ │                                                                                                               │ │
+│ │         try {                                                                                                 │ │
+│ │             // Simple check: does schema have system_prompt field?                                            │ │
+│ │             boolean hasSystemPromptParam = inputSchemaJson.contains("\"system_prompt\"");                     │ │
+│ │                                                                                                               │ │
+│ │             if (hasSystemPromptParam) {                                                                       │ │
+│ │                 log.debug("Schema has system_prompt parameter, using Claude formatter");                      │ │
+│ │                 return CLAUDE_FORMATTER;                                                                      │ │
+│ │             } else {                                                                                          │ │
+│ │                 log.debug("Schema lacks system_prompt parameter, using OpenAI formatter");                    │ │
+│ │                 return OPENAI_FORMATTER;                                                                      │ │
+│ │             }                                                                                                 │ │
+│ │         } catch (Exception e) {                                                                               │ │
+│ │             log.warn("Failed to analyze input schema, defaulting to Claude formatter", e);                    │ │
+│ │             return CLAUDE_FORMATTER;                                                                          │ │
+│ │         }                                                                                                     │ │
+│ │     }                                                                                                         │ │
+│ │                                                                                                               │ │
+│ │     /**                                                                                                       │ │
+│ │      * Get formatter for a model (with caching via MLModelCacheHelper)                                        │ │
+│ │      */                                                                                                       │ │
+│ │     public static MessageFormatter getFormatterForModel(                                                      │ │
+│ │         String modelId,                                                                                       │ │
+│ │         MLModelCacheHelper modelCacheHelper                                                                   │ │
+│ │     ) {                                                                                                       │ │
+│ │         if (modelId == null) {                                                                                │ │
+│ │             return CLAUDE_FORMATTER;                                                                          │ │
+│ │         }                                                                                                     │ │
+│ │                                                                                                               │ │
+│ │         try {                                                                                                 │ │
+│ │             Map<String, String> modelInterface = modelCacheHelper.getModelInterface(modelId);                 │ │
+│ │             if (modelInterface != null && modelInterface.containsKey("input")) {                              │ │
+│ │                 return getFormatter(modelInterface.get("input"));                                             │ │
+│ │             }                                                                                                 │ │
+│ │         } catch (Exception e) {                                                                               │ │
+│ │             log.warn("Failed to get formatter for model {}, using default", modelId, e);                      │ │
+│ │         }                                                                                                     │ │
+│ │                                                                                                               │ │
+│ │         return CLAUDE_FORMATTER;                                                                              │ │
+│ │     }                                                                                                         │ │
+│ │ }                                                                                                             │ │
+│ │                                                                                                               │ │
+│ │ Phase 3: Integrate into MemoryProcessingService (~3 hours)                                                    │ │
+│ │                                                                                                               │ │
+│ │ Simplified Integration - Replace repetitive code with clean formatter usage:                                  │ │
+│ │                                                                                                               │ │
+│ │ public class MemoryProcessingService {                                                                        │ │
+│ │                                                                                                               │ │
+│ │     public void extractFactsFromConversation(                                                                 │ │
+│ │         List<MessageInput> messages,                                                                          │ │
+│ │         MemoryStrategy strategy,                                                                              │ │
+│ │         MemoryConfiguration memoryConfig,                                                                     │ │
+│ │         ActionListener<List<String>> listener                                                                 │ │
+│ │     ) {                                                                                                       │ │
+│ │         String llmModelId = getEffectiveLlmId(strategy, memoryConfig);                                        │ │
+│ │         if (llmModelId == null) {                                                                             │ │
+│ │             listener.onResponse(new ArrayList<>());                                                           │ │
+│ │             return;                                                                                           │ │
+│ │         }                                                                                                     │ │
+│ │                                                                                                               │ │
+│ │         // Get appropriate formatter for the model                                                            │ │
+│ │         MessageFormatter formatter = MessageFormatterFactory.getFormatterForModel(                            │ │
+│ │             llmModelId,                                                                                       │ │
+│ │             modelCacheHelper                                                                                  │ │
+│ │         );                                                                                                    │ │
+│ │                                                                                                               │ │
+│ │         // Determine system prompt                                                                            │ │
+│ │         String systemPrompt = determineSystemPrompt(strategy);                                                │ │
+│ │                                                                                                               │ │
+│ │         // Add any additional messages from strategy config                                                   │ │
+│ │         List<MessageInput> allMessages = buildFullMessageList(messages, strategy);                            │ │
+│ │                                                                                                               │ │
+│ │         // Format the request using the appropriate formatter                                                 │ │
+│ │         Map<String, String> parameters = formatter.formatRequest(                                             │ │
+│ │             systemPrompt,                                                                                     │ │
+│ │             allMessages,                                                                                      │ │
+│ │             strategy.getStrategyConfig()                                                                      │ │
+│ │         );                                                                                                    │ │
+│ │                                                                                                               │ │
+│ │         // Log which formatter was used                                                                       │ │
+│ │         log.info("[MESSAGE_FORMATTING] Model {}: Using {} formatter",                                         │ │
+│ │             llmModelId,                                                                                       │ │
+│ │             formatter.getClass().getSimpleName()                                                              │ │
+│ │         );                                                                                                    │ │
+│ │                                                                                                               │ │
+│ │         // Continue with existing MLInput building and execution...                                           │ │
+│ │         MLInput mlInput = MLInput.builder()                                                                   │ │
+│ │             .algorithm(FunctionName.REMOTE)                                                                   │ │
+│ │             .inputDataset(RemoteInferenceInputDataSet.builder()                                               │ │
+│ │                 .parameters(parameters)                                                                       │ │
+│ │                 .build())                                                                                     │ │
+│ │             .build();                                                                                         │ │
+│ │                                                                                                               │ │
+│ │         // Rest of the method remains the same...                                                             │ │
+│ │     }                                                                                                         │ │
+│ │ }                                                                                                             │ │
+│ │                                                                                                               │ │
+│ │ Phase 4: Enhanced Content Processing (~2 hours)                                                               │ │
+│ │                                                                                                               │ │
+│ │ Extend MessageInput with smart content processing:                                                            │ │
+│ │                                                                                                               │ │
+│ │ public class MessageInput {                                                                                   │ │
+│ │                                                                                                               │ │
+│ │     /**                                                                                                       │ │
+│ │      * Convert to XContent with optional content processing                                                   │ │
+│ │      */                                                                                                       │ │
+│ │     public XContentBuilder toXContent(                                                                        │ │
+│ │         XContentBuilder builder,                                                                              │ │
+│ │         Params params,                                                                                        │ │
+│ │         MessageFormatter formatter  // NEW: optional formatter for processing                                 │ │
+│ │     ) throws IOException {                                                                                    │ │
+│ │         builder.startObject();                                                                                │ │
+│ │                                                                                                               │ │
+│ │         if (role != null) {                                                                                   │ │
+│ │             builder.field(ROLE_FIELD, role);                                                                  │ │
+│ │         }                                                                                                     │ │
+│ │                                                                                                               │ │
+│ │         if (content != null) {                                                                                │ │
+│ │             // Process content if formatter provided                                                          │ │
+│ │             List<Map<String, Object>> processedContent =                                                      │ │
+│ │                 formatter != null ? formatter.processContent(content) : content;                              │ │
+│ │                                                                                                               │ │
+│ │             builder.field(CONTENT_FIELD, processedContent);                                                   │ │
+│ │         }                                                                                                     │ │
+│ │                                                                                                               │ │
+│ │         builder.endObject();                                                                                  │ │
+│ │         return builder;                                                                                       │ │
+│ │     }                                                                                                         │ │
+│ │                                                                                                               │ │
+│ │     // Keep original method for backward compatibility                                                        │ │
+│ │     @Override                                                                                                 │ │
+│ │     public XContentBuilder toXContent(XContentBuilder builder, Params params) {                               │ │
+│ │         return toXContent(builder, params, null);                                                             │ │
+│ │     }                                                                                                         │ │
+│ │ }                                                                                                             │ │
+│ │                                                                                                               │ │
+│ │ Phase 5: Testing Strategy (~2 hours)                                                                          │ │
+│ │                                                                                                               │ │
+│ │ public class MessageFormatterTests {                                                                          │ │
+│ │                                                                                                               │ │
+│ │     @Test                                                                                                     │ │
+│ │     public void testClaudeFormatter_SystemPromptInParameters() {                                              │ │
+│ │         MessageFormatter formatter = new ClaudeMessageFormatter();                                            │ │
+│ │         Map<String, String> result = formatter.formatRequest(                                                 │ │
+│ │             "You are helpful",                                                                                │ │
+│ │             messages,                                                                                         │ │
+│ │             config                                                                                            │ │
+│ │         );                                                                                                    │ │
+│ │                                                                                                               │ │
+│ │         assertEquals("You are helpful", result.get("system_prompt"));                                         │ │
+│ │         assertFalse(result.get("messages").contains("\"role\":\"system\""));                                  │ │
+│ │     }                                                                                                         │ │
+│ │                                                                                                               │ │
+│ │     @Test                                                                                                     │ │
+│ │     public void testOpenAIFormatter_SystemPromptInMessage() {                                                 │ │
+│ │         MessageFormatter formatter = new OpenAIMessageFormatter();                                            │ │
+│ │         Map<String, String> result = formatter.formatRequest(                                                 │ │
+│ │             "You are helpful",                                                                                │ │
+│ │             messages,                                                                                         │ │
+│ │             config                                                                                            │ │
+│ │         );                                                                                                    │ │
+│ │                                                                                                               │ │
+│ │         assertNull(result.get("system_prompt"));                                                              │ │
+│ │         assertTrue(result.get("messages").contains("\"role\":\"system\""));                                   │ │
+│ │     }                                                                                                         │ │
+│ │                                                                                                               │ │
+│ │     @Test                                                                                                     │ │
+│ │     public void testContentProcessing_UserDefinedObject() {                                                   │ │
+│ │         Map<String, Object> userObject = Map.of("data", "value");                                             │ │
+│ │         List<Map<String, Object>> processed = formatter.processContent(List.of(userObject));                  │ │
+│ │                                                                                                               │ │
+│ │         assertEquals("text", processed.get(0).get("type"));                                                   │ │
+│ │         assertTrue(processed.get(0).get("text").toString().contains("data"));                                 │ │
+│ │     }                                                                                                         │ │
+│ │ }                                                                                                             │ │
+│ │                                                                                                               │ │
+│ │ Key Advantages Over Original Proposal                                                                         │ │
+│ │                                                                                                               │ │
+│ │ 1. Cleaner Architecture                                                                                       │ │
+│ │   - Strategy pattern instead of if/else chains                                                                │ │
+│ │   - Single responsibility for each class                                                                      │ │
+│ │   - Easy to add new model types                                                                               │ │
+│ │ 2. Better Maintainability                                                                                     │ │
+│ │   - Formatter logic centralized, not scattered                                                                │ │
+│ │   - Clear separation of concerns                                                                              │ │
+│ │   - Testable components                                                                                       │ │
+│ │ 3. Simpler Code                                                                                               │ │
+│ │   - ~400 lines vs proposed ~800 lines                                                                         │ │
+│ │   - Reusable formatters across all methods                                                                    │ │
+│ │   - No duplicate logic                                                                                        │ │
+│ │ 4. Performance                                                                                                │ │
+│ │   - Formatter instances are singletons (reused)                                                               │ │
+│ │   - Schema check is simple string contains (fast)                                                             │ │
+│ │   - Can cache formatter choice per model                                                                      │ │
+│ │ 5. Extensibility                                                                                              │ │
+│ │   - Add new formatter? Create class, register in factory                                                      │ │
+│ │   - Add content processor? Extend processContent method                                                       │ │
+│ │   - No changes to existing code needed                                                                        │ │
+│ │                                                                                                               │ │
+│ │ Migration Steps                                                                                               │ │
+│ │                                                                                                               │ │
+│ │ 1. Create formatter classes (Phase 1)                                                                         │ │
+│ │ 2. Add factory with tests (Phase 2)                                                                           │ │
+│ │ 3. Update one method as pilot (extractFactsFromConversation)                                                  │ │
+│ │ 4. If successful, update other methods (makeMemoryDecisions, summarizeMessages)                               │ │
+│ │ 5. Remove old hardcoded logic                                                                                 │ │
+│ │                                                                                                               │ │
+│ │ Files Summary                                                                                                 │ │
+│ │                                                                                                               │ │
+│ │ | File                         | Type    | Lines        | Purpose                      |                      │ │
+│ │ |------------------------------|---------|--------------|------------------------------|                      │ │
+│ │ | MessageFormatter.java        | NEW     | ~30          | Interface definition         |                      │ │
+│ │ | ClaudeMessageFormatter.java  | NEW     | ~80          | Claude implementation        |                      │ │
+│ │ | OpenAIMessageFormatter.java  | NEW     | ~80          | OpenAI implementation        |                      │ │
+│ │ | MessageFormatterFactory.java | NEW     | ~60          | Factory for formatters       |                      │ │
+│ │ | MemoryProcessingService.java | MODIFY  | ~50 modified | Use formatters               |                      │ │
+│ │ | MessageFormatterTests.java   | NEW     | ~150         | Comprehensive tests          |                      │ │
+│ │ | Total                        | 6 files | ~400 lines   | Clean, maintainable solution |                      │ │
+│ │                                                                                                               │ │
+│ │ Risk Assessment                                                                                               │ │
+│ │                                                                                                               │ │
+│ │ - Low Risk: Isolated changes, easy rollback                                                                   │ │
+│ │ - High Testability: Each component independently testable                                                     │ │
+│ │ - Future Proof: Easy to add Gemini, Llama, etc. formatters                                                    │ │
+│ │                                                                                                               │ │
+│ │ Estimated Time: ~12 hours                                                                                     │ │
+│ │                                                                                                               │ │
+│ │ This approach is significantly cleaner and more maintainable than the original proposal while achieving the   │ │
+│ │ same goals with less code.                                                                                    │ │
+│ ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
